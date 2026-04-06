@@ -206,6 +206,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .cs2d{border:none;border-top:1px solid rgba(255,255,255,.2);margin:10px 0}
 .cs2tl{font-size:15px;color:#fff;font-weight:700}.cs2tv{font-size:24px;font-weight:900;color:#FFE066}
 .csmsbtn{width:100%;margin-top:14px;padding:14px;background:#1E8449;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.kakao-btn{width:100%;padding:13px;background:#FEE500;color:#3A1D1D;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;display:flex;align-items:center;justify-content:center;transition:opacity .2s}
+.kakao-btn:active{opacity:.85}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:12px 0}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--bd)}
+.auth-divider span{font-size:12px;color:var(--sub);white-space:nowrap}
 .cclrbtn{width:100%;margin-top:8px;padding:11px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.2);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer}
 
 /* ══ 관리자 패널 ══ */
@@ -271,6 +276,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     </div>
     <button class="abtn" id="abtn">로그인</button>
     <p class="amsg" id="amsg"></p>
+    <div class="auth-divider">
+      <span>또는</span>
+    </div>
+    <button class="kakao-btn" id="kakaoBtnEl">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:6px"><path fill-rule="evenodd" clip-rule="evenodd" d="M9 0.5C4.305 0.5 0.5 3.476 0.5 7.143c0 2.37 1.574 4.454 3.958 5.67l-1.008 3.762c-.088.329.353.586.6.335L8.29 13.9c.235.02.472.03.71.03 4.695 0 8.5-2.976 8.5-6.643C17.5 3.62 13.695.5 9 .5z" fill="#3A1D1D"/></svg>
+      카카오 로그인
+    </button>
     <div class="anot">
       &#128274; 가격 정보는 회원 로그인 후 확인 가능합니다.<br>
       &#128226; 물량 할인가는 관리자 승인 후 이용하실 수 있습니다.
@@ -357,6 +369,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   </div>
 </div>
 
+<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
 <script>
 function _ls(src,cb){
   var s=document.createElement('script');s.src=src;
@@ -377,6 +390,9 @@ function showAuth(){ ge('LS').style.display='none'; ge('AS').style.display='flex
 function showApp(){  ge('LS').style.display='none'; ge('AS').style.display='none'; ge('app').style.display='flex'; buildHome(); }
 
 /* Firebase */
+/* 카카오 SDK 초기화 */
+Kakao.init('92675e9706c372768a081cabaf3c3ed6');
+
 firebase.initializeApp({
   apiKey:"AIzaSyB3xoUlqYb_CJ6sS3FIKjUiunoxFd88wNo", authDomain:"autorefinish.firebaseapp.com",
   projectId:"autorefinish", storageBucket:"autorefinish.firebasestorage.app",
@@ -440,6 +456,62 @@ function renderUserChip(){
 }
 
 /* ══ 인증 UI ══ */
+/* 카카오 로그인 */
+function kakaoLogin(){
+  Kakao.Auth.login({
+    scope:'profile_nickname,profile_image,account_email,phone_number',
+    success:function(authObj){
+      Kakao.API.request({
+        url:'/v2/user/me',
+        success:function(res){
+          var kakaoAcct = res.kakao_account || {};
+          var profile   = kakaoAcct.profile || {};
+          var nickname  = profile.nickname || '카카오사용자';
+          var email     = kakaoAcct.email || (res.id+'@kakao.com');
+          var phone     = kakaoAcct.phone_number || '';
+          var imgUrl    = profile.profile_image_url || '';
+
+          /* Firebase에 카카오 토큰으로 Custom 로그인
+             (Custom Token 없이는 Firebase Auth 직접 연동 불가)
+             → 대신 이메일/비밀번호로 자동 가입/로그인 처리 */
+          var autoPw = 'KAKAO_' + res.id + '_AUTO';
+          showLoad('카카오 로그인 중...');
+          auth.signInWithEmailAndPassword(email, autoPw)
+            .catch(function(){
+              /* 첫 로그인 시 자동 회원가입 */
+              return auth.createUserWithEmailAndPassword(email, autoPw)
+                .then(function(uc){
+                  return uc.user.updateProfile({
+                    displayName: nickname,
+                    photoURL: imgUrl
+                  }).then(function(){
+                    return db.collection('users').doc(uc.user.uid).set({
+                      email:   email,
+                      name:    nickname,
+                      phone:   phone,
+                      company: '',
+                      role:    'basic',
+                      kakaoId: String(res.id),
+                      loginType: 'kakao',
+                      pendingUpgrade: false,
+                      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                  });
+                });
+            });
+        },
+        fail:function(e){
+          showAuth();
+          setMsg('카카오 정보를 가져오지 못했습니다.','err');
+        }
+      });
+    },
+    fail:function(e){
+      setMsg('카카오 로그인을 취소했습니다.','err');
+    }
+  });
+}
+
 var amode='login';
 function setMode(m){
   amode=m;
@@ -495,6 +567,7 @@ ge('abtn').addEventListener('click',function(){
 [ge('aemail'),ge('apw'),ge('aname'),ge('aphone'),ge('acomp')].forEach(function(el){
   if(el) el.addEventListener('keydown',function(e){if(e.key==='Enter')ge('abtn').click();});
 });
+ge('kakaoBtnEl').addEventListener('click', kakaoLogin);
 ge('loutbtn').addEventListener('click',function(){
   if(confirm('로그아웃 하시겠습니까?')){auth.signOut();CART=[];updateBadge();}
 });
@@ -710,7 +783,7 @@ function renderCart(){
   h+='<div class="cs2"><div class="cs2r"><span class="cs2l">총 품목 수</span><span class="cs2v">'+CART.length+'종</span></div>'
     +'<div class="cs2r"><span class="cs2l">총 수량</span><span class="cs2v">'+tq+'EA</span></div>'
     +'<hr class="cs2d"><div class="cs2r"><span class="cs2tl">💰 총 합계 금액</span><span class="cs2tv">'+nf(cartTotal())+'원</span></div></div>'
-    +'<button class="csmsbtn" id="csmsbtn">💬 문자로 주문하기 (010-4864-8560)</button>'
+    +'<button class="csmsbtn" id="csmsbtn">💬 문자로 카카오톡으로 주문하기</button>'
     +'<button class="cclrbtn" id="cclrbtn">🗑 전체 비우기</button>';
   b.innerHTML=h;
   b.querySelectorAll('[data-a]').forEach(function(el){
@@ -731,6 +804,40 @@ function renderCart(){
   var cc=ge('cclrbtn');if(cc)cc.addEventListener('click',function(){CART=[];renderCart();});
 }
 function sendSMS(){
+  /* 오픈카카오톡으로 주문 전달 */
+  var lines=['[자보 제품 주문]'];
+  if(CU)lines.push('주문자: '+(CU.displayName||CU.email));
+  for(var i=0;i<CART.length;i++){
+    var c=CART[i],d=DB[c.idx],q=c.qty,r=calcUnit(d,q);
+    lines.push((i+1)+'. '+getName(d)+' / '+q+'EA'
+      +(r?' / '+nf(r.unit)+'원 x '+q+'EA = '+nf(r.total)+'원':''));
+  }
+  lines.push('');
+  lines.push('합계: '+nf(cartTotal())+'원');
+  lines.push('');
+  lines.push('주소: ');
+  lines.push('연락처: ');
+  lines.push('---');
+  lines.push('위 내용을 확인해 주세요.');
+
+  var msg = encodeURIComponent(lines.join('\n'));
+  /* 오픈카카오톡 링크로 이동 */
+  window.open('https://open.kakao.com/o/soefIapi', '_blank');
+
+  /* 클립보드에 주문내용 복사 */
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(lines.join('\n')).then(function(){
+      alert('주문 내용이 복사되었습니다!\n오픈카카오톡 채팅창에 붙여넣기(길게누르기) 해주세요.');
+    }).catch(function(){
+      /* 클립보드 실패 시 SMS로 대체 */
+      window.location.href='sms:01048648560?body='+msg;
+    });
+  } else {
+    window.location.href='sms:01048648560?body='+msg;
+  }
+}
+
+function _sendSMSOriginal(){
   var lines=['[주문 문의]'];
   if(CU)lines.push('주문자: '+(CU.displayName||CU.email));
   for(var i=0;i<CART.length;i++){
@@ -945,7 +1052,7 @@ function openDet(idx){
       +'<div class="obox"><div class="otit">📱 문자 주문 안내</div>'
       +'<span class="otel">010-4864-8560</span>'
       +'<div class="odesc">아래 버튼을 누르시면 문자 작성 화면이 열립니다.<br><strong>제품명 · 수량 · 주소 · 연락처</strong>를 입력 후 보내주세요.</div>'
-      +'<button class="smsbtn" id="dsmsbtn">💬 문자로 주문하기</button></div></div>';
+      +'<button class="smsbtn" id="dsmsbtn">💬 카카오톡으로 주문하기</button></div></div>';
     if(pr>0)h+='<button class="detadd" id="detaddbtn">🛒 장바구니에 담기</button>';
   }
   h+='<button class="closebtn" id="detclosebtn">닫기</button>';
@@ -961,8 +1068,27 @@ function openDet(idx){
   var ds=ge('dsmsbtn');
   if(ds)ds.addEventListener('click',function(){
     var q=dqi?parseInt(dqi.value,10)||1:1;
-    var msg='[주문 문의]\n제품명: '+getName(DI)+'\n수량: '+q+'EA\n주소: \n연락처: \n---\n위 정보를 입력 후 보내주세요';
-    window.location.href='sms:01048648560?body='+encodeURIComponent(msg);
+    var r=calcUnit(DI,q);
+    var lines=['[자보 제품 주문]'];
+    if(CU)lines.push('주문자: '+(CU.displayName||CU.email));
+    lines.push('제품명: '+getName(DI));
+    lines.push('수량: '+q+'EA');
+    if(r)lines.push('단가: '+nf(r.unit)+'원 / 합계: '+nf(r.total)+'원');
+    lines.push('');
+    lines.push('주소: ');
+    lines.push('연락처: ');
+    lines.push('---');
+    lines.push('위 내용을 확인해 주세요.');
+    window.open('https://open.kakao.com/o/soefIapi','_blank');
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(lines.join('\n')).then(function(){
+        alert('주문 내용이 복사되었습니다!\n카카오톡 채팅창에 붙여넣기 해주세요.');
+      }).catch(function(){
+        window.location.href='sms:01048648560?body='+encodeURIComponent(lines.join('\n'));
+      });
+    } else {
+      window.location.href='sms:01048648560?body='+encodeURIComponent(lines.join('\n'));
+    }
   });
   var da=ge('detaddbtn');
   if(da)da.addEventListener('click',function(){
