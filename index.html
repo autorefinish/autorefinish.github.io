@@ -369,16 +369,16 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
   </div>
 </div>
 
-<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
 <script>
 function _ls(src,cb){
   var s=document.createElement('script');s.src=src;
   s.onload=cb;s.onerror=function(){document.getElementById('lmsg').textContent='네트워크 오류. 새로고침해주세요.';};
   document.head.appendChild(s);
 }
-_ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',function(){
-  _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',function(){
-    _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',function(){
+_ls('https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js',function(){
+  _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',function(){
+    _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',function(){
+      _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',function(){
 
 (function(){
 
@@ -391,7 +391,9 @@ function showApp(){  ge('LS').style.display='none'; ge('AS').style.display='none
 
 /* Firebase */
 /* 카카오 SDK 초기화 */
-Kakao.init('92675e9706c372768a081cabaf3c3ed6');
+try {
+  if(!Kakao.isInitialized()) Kakao.init('92675e9706c372768a081cabaf3c3ed6');
+} catch(e) { console.warn('Kakao init:', e); }
 
 firebase.initializeApp({
   apiKey:"AIzaSyB3xoUlqYb_CJ6sS3FIKjUiunoxFd88wNo", authDomain:"autorefinish.firebaseapp.com",
@@ -458,16 +460,14 @@ function renderUserChip(){
 /* ══ 인증 UI ══ */
 /* 카카오 로그인 */
 function kakaoLogin(){
-  if(typeof Kakao === 'undefined' || !Kakao.isInitialized()){
-    try{
-      Kakao.init('92675e9706c372768a081cabaf3c3ed6');
-    }catch(e){
-      alert('카카오 로그인 준비 중입니다. 잠시 후 다시 시도해주세요.');
-      return;
-    }
+  try {
+    if(!Kakao.isInitialized()) Kakao.init('92675e9706c372768a081cabaf3c3ed6');
+  } catch(e) {
+    alert('카카오 로그인 초기화 실패: '+e.message);
+    return;
   }
   Kakao.Auth.login({
-    scope:'profile_nickname,profile_image,account_email,phone_number',
+    scope:'profile_nickname,profile_image',
     success:function(authObj){
       Kakao.API.request({
         url:'/v2/user/me',
@@ -1157,6 +1157,7 @@ showLoad('Firebase 연결 중...');
 
 })();
 
+      });
     });
   });
 });
