@@ -458,6 +458,14 @@ function renderUserChip(){
 /* ══ 인증 UI ══ */
 /* 카카오 로그인 */
 function kakaoLogin(){
+  if(typeof Kakao === 'undefined' || !Kakao.isInitialized()){
+    try{
+      Kakao.init('92675e9706c372768a081cabaf3c3ed6');
+    }catch(e){
+      alert('카카오 로그인 준비 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+  }
   Kakao.Auth.login({
     scope:'profile_nickname,profile_image,account_email,phone_number',
     success:function(authObj){
@@ -804,7 +812,6 @@ function renderCart(){
   var cc=ge('cclrbtn');if(cc)cc.addEventListener('click',function(){CART=[];renderCart();});
 }
 function sendSMS(){
-  /* 오픈카카오톡으로 주문 전달 */
   var lines=['[자보 제품 주문]'];
   if(CU)lines.push('주문자: '+(CU.displayName||CU.email));
   for(var i=0;i<CART.length;i++){
@@ -814,27 +821,53 @@ function sendSMS(){
   }
   lines.push('');
   lines.push('합계: '+nf(cartTotal())+'원');
-  lines.push('');
   lines.push('주소: ');
   lines.push('연락처: ');
-  lines.push('---');
-  lines.push('위 내용을 확인해 주세요.');
+  var orderText = lines.join('\n');
 
-  var msg = encodeURIComponent(lines.join('\n'));
-  /* 오픈카카오톡 링크로 이동 */
-  window.open('https://open.kakao.com/o/soefIapi', '_blank');
+  /* 클립보드 복사 후 카카오 이동 */
+  function goKakao(){
+    window.location.href='https://open.kakao.com/o/soefIapi';
+  }
 
-  /* 클립보드에 주문내용 복사 */
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(lines.join('\n')).then(function(){
-      alert('주문 내용이 복사되었습니다!\n오픈카카오톡 채팅창에 붙여넣기(길게누르기) 해주세요.');
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(orderText).then(function(){
+      if(confirm('주문 내용이 복사되었습니다!\n\n카카오 오픈채팅으로 이동합니다.\n채팅창에서 길게 눌러 붙여넣기 해주세요.')){
+        goKakao();
+      }
     }).catch(function(){
-      /* 클립보드 실패 시 SMS로 대체 */
-      window.location.href='sms:01048648560?body='+msg;
+      /* iOS Safari 등 클립보드 실패 시 */
+      showOrderPopup(orderText);
     });
   } else {
-    window.location.href='sms:01048648560?body='+msg;
+    showOrderPopup(orderText);
   }
+}
+
+function showOrderPopup(txt){
+  /* 팝업으로 주문 내용 표시 + 직접 복사 안내 */
+  var ov = document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;width:100%;max-width:400px;max-height:80vh;overflow-y:auto">'
+    +'<div style="font-size:15px;font-weight:700;margin-bottom:12px">📋 주문 내용 복사</div>'
+    +'<textarea id="orderTxt" style="width:100%;height:180px;border:1.5px solid #D5E3F0;border-radius:8px;padding:10px;font-size:12px;resize:none;font-family:inherit">'+txt+'</textarea>'
+    +'<p style="font-size:11px;color:#607D99;margin:8px 0 14px">위 내용을 전체 선택(꾹 누르기) 후 복사하세요</p>'
+    +'<button id="copyOkBtn" style="width:100%;padding:13px;background:#FEE500;color:#3A1D1D;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px">복사 완료 → 카카오 오픈채팅 열기</button>'
+    +'<button id="closeOvBtn" style="width:100%;padding:10px;background:#f0f0f0;color:#666;border:none;border-radius:10px;font-size:13px;cursor:pointer">닫기</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  /* 텍스트 자동 선택 */
+  setTimeout(function(){
+    var ta = document.getElementById('orderTxt');
+    if(ta){ta.focus();ta.select();}
+  },100);
+  document.getElementById('copyOkBtn').addEventListener('click',function(){
+    document.body.removeChild(ov);
+    window.location.href='https://open.kakao.com/o/soefIapi';
+  });
+  document.getElementById('closeOvBtn').addEventListener('click',function(){
+    document.body.removeChild(ov);
+  });
 }
 
 function _sendSMSOriginal(){
@@ -1074,20 +1107,17 @@ function openDet(idx){
     lines.push('제품명: '+getName(DI));
     lines.push('수량: '+q+'EA');
     if(r)lines.push('단가: '+nf(r.unit)+'원 / 합계: '+nf(r.total)+'원');
-    lines.push('');
     lines.push('주소: ');
     lines.push('연락처: ');
-    lines.push('---');
-    lines.push('위 내용을 확인해 주세요.');
-    window.open('https://open.kakao.com/o/soefIapi','_blank');
-    if(navigator.clipboard){
-      navigator.clipboard.writeText(lines.join('\n')).then(function(){
-        alert('주문 내용이 복사되었습니다!\n카카오톡 채팅창에 붙여넣기 해주세요.');
-      }).catch(function(){
-        window.location.href='sms:01048648560?body='+encodeURIComponent(lines.join('\n'));
-      });
+    var orderText=lines.join('\n');
+    if(navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(orderText).then(function(){
+        if(confirm('주문 내용이 복사되었습니다!\n\n카카오 오픈채팅으로 이동합니다.\n채팅창에서 길게 눌러 붙여넣기 해주세요.')){
+          window.location.href='https://open.kakao.com/o/soefIapi';
+        }
+      }).catch(function(){showOrderPopup(orderText);});
     } else {
-      window.location.href='sms:01048648560?body='+encodeURIComponent(lines.join('\n'));
+      showOrderPopup(orderText);
     }
   });
   var da=ge('detaddbtn');
