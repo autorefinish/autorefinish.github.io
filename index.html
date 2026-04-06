@@ -253,6 +253,14 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
       <label class="alb">이름 (선택)</label>
       <input class="ain" id="aname" type="text" placeholder="홍길동">
     </div>
+    <div class="afl" id="phonefield" style="display:none">
+      <label class="alb">연락처 <span style="color:var(--red);font-size:10px">&#42; 필수</span></label>
+      <input class="ain" id="aphone" type="tel" placeholder="010-0000-0000" inputmode="numeric">
+    </div>
+    <div class="afl" id="compfield" style="display:none">
+      <label class="alb">업체명 (선택)</label>
+      <input class="ain" id="acomp" type="text" placeholder="도장 업체명">
+    </div>
     <div class="afl">
       <label class="alb">이메일</label>
       <input class="ain" id="aemail" type="email" placeholder="example@email.com" autocomplete="email">
@@ -438,6 +446,8 @@ function setMode(m){
   ge('tlogin').classList.toggle('on',m==='login');
   ge('tsignup').classList.toggle('on',m==='signup');
   ge('nfield').style.display=m==='signup'?'block':'none';
+  ge('phonefield').style.display=m==='signup'?'block':'none';
+  ge('compfield').style.display=m==='signup'?'block':'none';
   ge('abtn').textContent=m==='login'?'로그인':'회원가입';
   ge('amsg').textContent=''; ge('amsg').className='amsg';
 }
@@ -462,9 +472,18 @@ ge('abtn').addEventListener('click',function(){
       setMsg(m,'err');
     });
   } else {
+    var phone=ge('aphone')?ge('aphone').value.trim():'';
+    var comp=ge('acomp')?ge('acomp').value.trim():'';
+    if(!phone){setMsg('연락처를 입력해주세요.','err');ge('abtn').disabled=false;return;}
     auth.createUserWithEmailAndPassword(email,pw).then(function(uc){
       var dn=name||email.split('@')[0];
-      return uc.user.updateProfile({displayName:dn});
+      return uc.user.updateProfile({displayName:dn}).then(function(){
+        return db.collection('users').doc(uc.user.uid).set({
+          email:email, name:dn, phone:phone, company:comp,
+          role:'basic', pendingUpgrade:false,
+          createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        });
+      });
     }).catch(function(e){
       ge('abtn').disabled=false;
       var m='회원가입에 실패했습니다.';
@@ -473,7 +492,7 @@ ge('abtn').addEventListener('click',function(){
     });
   }
 });
-[ge('aemail'),ge('apw'),ge('aname')].forEach(function(el){
+[ge('aemail'),ge('apw'),ge('aname'),ge('aphone'),ge('acomp')].forEach(function(el){
   if(el) el.addEventListener('keydown',function(e){if(e.key==='Enter')ge('abtn').click();});
 });
 ge('loutbtn').addEventListener('click',function(){
@@ -739,6 +758,7 @@ function openAdmin(){
         +'<div class="mb-top"><div class="mb-info">'
         +'<div class="mb-email">'+esc(u.email||'')+'</div>'
         +'<div class="mb-name">'+esc(u.name||'')+(u.role==='admin'?' 👑':'')+'</div>'
+        +(u.phone?'<div class="mb-time">📞 '+esc(u.phone)+(u.company?' | 🏢 '+esc(u.company):'')+' </div>':'')
         +'<div class="mb-time">가입: '+dt+'</div>'
         +'</div></div>'
         +(u.pendingUpgrade&&u.role!=='pro'&&u.role!=='admin'
