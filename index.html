@@ -365,9 +365,11 @@ function _ls(src,cb){
   s.onload=cb;s.onerror=function(){document.getElementById('lmsg').textContent='네트워크 오류. 새로고침해주세요.';};
   document.head.appendChild(s);
 }
-_ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',function(){
-  _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',function(){
-    _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',function(){
+_ls('https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',function(){
+  emailjs.init('2imF6nvhu6-nB0O2V');
+  _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',function(){
+    _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',function(){
+      _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',function(){
 
 (function(){
 
@@ -736,19 +738,95 @@ function renderCart(){
   var cs=ge('csmsbtn');if(cs)cs.addEventListener('click',sendSMS);
   var cc=ge('cclrbtn');if(cc)cc.addEventListener('click',function(){CART=[];renderCart();});
 }
+
+/* ══ EmailJS 이메일 발송 ══ */
+function sendOrderEmails(orderData){
+  var now = new Date();
+  var orderNo = 'ORD-' + now.getFullYear()
+    + String(now.getMonth()+1).padStart(2,'0')
+    + String(now.getDate()).padStart(2,'0')
+    + '-' + String(now.getHours()).padStart(2,'0')
+    + String(now.getMinutes()).padStart(2,'0')
+    + String(now.getSeconds()).padStart(2,'0');
+  var orderDate = now.getFullYear() + '년 '
+    + (now.getMonth()+1) + '월 '
+    + now.getDate() + '일 '
+    + now.getHours() + '시 '
+    + String(now.getMinutes()).padStart(2,'0') + '분';
+
+  var params = {
+    customer_name:  orderData.name,
+    customer_email: orderData.email,
+    company:        orderData.company,
+    phone:          orderData.phone,
+    order_no:       orderNo,
+    order_date:     orderDate,
+    order_items:    orderData.items,
+    total_amount:   orderData.total
+  };
+
+  /* 고객용 이메일 */
+  if(orderData.email && orderData.email.indexOf('@') > 0){
+    emailjs.send('service_u84073f', '518gwgv', params)
+      .then(function(){ console.log('고객 이메일 발송 완료'); })
+      .catch(function(e){ console.warn('고객 이메일 오류:', e); });
+  }
+
+  /* 관리자용 이메일 */
+  emailjs.send('service_u84073f', 'les9r73', params)
+    .then(function(){ console.log('관리자 이메일 발송 완료'); })
+    .catch(function(e){ console.warn('관리자 이메일 오류:', e); });
+
+  /* Firestore에 주문 저장 */
+  if(db && CU){
+    db.collection('orders').add({
+      uid:       CU.uid,
+      orderNo:   orderNo,
+      orderDate: firebase.firestore.FieldValue.serverTimestamp(),
+      name:      orderData.name,
+      email:     orderData.email,
+      company:   orderData.company,
+      phone:     orderData.phone,
+      items:     orderData.items,
+      total:     orderData.total,
+      status:    '접수'
+    }).catch(function(e){ console.warn('주문 저장 오류:', e); });
+  }
+}
+
 function sendSMS(){
-  var lines=['[자보 제품 주문]'];
-  if(CU)lines.push('주문자: '+(CU.displayName||CU.email));
+  var lines=[];
   for(var i=0;i<CART.length;i++){
     var c=CART[i],d=DB[c.idx],q=c.qty,r=calcUnit(d,q);
     lines.push((i+1)+'. '+getName(d)+' / '+q+'EA'
       +(r?' / '+nf(r.unit)+'원 x '+q+'EA = '+nf(r.total)+'원':''));
   }
-  lines.push('');
-  lines.push('합계: '+nf(cartTotal())+'원');
-  lines.push('주소: ');
-  lines.push('연락처: ');
   var orderText = lines.join('\n');
+  var totalAmt = nf(cartTotal())+'원';
+
+  /* 이메일 자동 발송 */
+  if(CU){
+    db.collection('users').doc(CU.uid).get().then(function(doc){
+      var udata = doc.exists ? doc.data() : {};
+      sendOrderEmails({
+        name:    CU.displayName || udata.name || CU.email,
+        email:   udata.email || CU.email || '',
+        company: udata.company || '',
+        phone:   udata.phone || '',
+        items:   orderText,
+        total:   nf(cartTotal())
+      });
+    });
+  }
+
+  /* 오픈카카오톡으로 이동 */
+  var kakaoLines = ['[자보 제품 주문]'];
+  if(CU)kakaoLines.push('주문자: '+(CU.displayName||CU.email));
+  kakaoLines.push(orderText);
+  kakaoLines.push('합계: '+nf(cartTotal())+'원');
+  kakaoLines.push('주소: ');
+  kakaoLines.push('연락처: ');
+  var kakaoText = kakaoLines.join('\n');
 
   /* 클립보드 복사 후 카카오 이동 */
   function goKakao(){
@@ -757,7 +835,7 @@ function sendSMS(){
 
   if(navigator.clipboard && window.isSecureContext){
     navigator.clipboard.writeText(orderText).then(function(){
-      if(confirm('주문 내용이 복사되었습니다!\n\n카카오 오픈채팅으로 이동합니다.\n채팅창에서 길게 눌러 붙여넣기 해주세요.')){
+      if(confirm('✅ 이메일이 자동 발송되었습니다!\n\n카카오 오픈채팅으로도 이동하시겠습니까?')){
         goKakao();
       }
     }).catch(function(){
@@ -1035,9 +1113,26 @@ function openDet(idx){
     lines.push('주소: ');
     lines.push('연락처: ');
     var orderText=lines.join('\n');
+
+    /* 이메일 자동 발송 */
+    if(CU){
+      db.collection('users').doc(CU.uid).get().then(function(doc){
+        var udata = doc.exists ? doc.data() : {};
+        var r2 = calcUnit(DI, q);
+        sendOrderEmails({
+          name:    CU.displayName || udata.name || CU.email,
+          email:   udata.email || CU.email || '',
+          company: udata.company || '',
+          phone:   udata.phone || '',
+          items:   getName(DI)+' / '+q+'EA'+(r2?' / '+nf(r2.unit)+'원 x '+q+'EA = '+nf(r2.total)+'원':''),
+          total:   r2 ? nf(r2.total) : '0'
+        });
+      });
+    }
+
     if(navigator.clipboard && window.isSecureContext){
       navigator.clipboard.writeText(orderText).then(function(){
-        if(confirm('주문 내용이 복사되었습니다!\n\n카카오 오픈채팅으로 이동합니다.\n채팅창에서 길게 눌러 붙여넣기 해주세요.')){
+        if(confirm('✅ 이메일이 자동 발송되었습니다!\n\n카카오 오픈채팅으로도 이동하시겠습니까?')){
           window.location.href='https://open.kakao.com/o/soefIapi';
         }
       }).catch(function(){showOrderPopup(orderText);});
@@ -1086,6 +1181,7 @@ showLoad('Firebase 연결 중...');
 
 })();
 
+      });
     });
   });
 });
