@@ -375,6 +375,12 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     <div class="hdl" id="adminhdl"><span></span></div>
     <div class="pnlb">
       <div class="pnlt">&#9878; 회원 권한 관리</div>
+      <div id="emailtest" style="background:#FFF3CD;border-radius:10px;padding:12px 14px;margin-bottom:12px;border:1px solid #f5c542">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">&#128233; EmailJS 진단 도구</div>
+        <input id="testEmail" type="email" placeholder="테스트 수신 이메일 주소" style="width:100%;padding:8px 10px;border:1.5px solid #f5c542;border-radius:8px;font-size:13px;margin-bottom:8px">
+        <button id="testEmailBtn" style="width:100%;padding:10px;background:#856404;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#9658; 테스트 이메일 발송</button>
+        <div id="testResult" style="font-size:12px;margin-top:8px;color:#856404"></div>
+      </div>
       <div id="adminbody"></div>
     </div>
   </div>
@@ -387,7 +393,8 @@ function _ls(src,cb){
   document.head.appendChild(s);
 }
 _ls('https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',function(){
-  emailjs.init('2imF6nvhu6-nB0O2V');
+  emailjs.init({publicKey:'2imF6nvhu6-nB0O2V'});
+  console.log('[EmailJS] 초기화 완료, version:', typeof emailjs !== 'undefined' ? 'loaded' : 'NOT LOADED');
   _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',function(){
     _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',function(){
       _ls('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js',function(){
@@ -1029,7 +1036,59 @@ function openAdmin(){
     });
   });
 }
-ge('adminbtn') && ge('adminbtn').addEventListener('click',openAdmin);
+ge('adminbtn') && ge('adminbtn').addEventListener('click',function(){
+  openAdmin();
+  /* 테스트 버튼 이벤트 연결 (패널 열릴 때마다) */
+  setTimeout(function(){
+    var tb=ge('testEmailBtn');
+    if(tb&&!tb._bound){
+      tb._bound=true;
+      tb.addEventListener('click',function(){
+        var to=ge('testEmail').value.trim();
+        var res=ge('testResult');
+        if(!to||to.indexOf('@')<0){res.textContent='❌ 이메일 주소를 입력하세요.';return;}
+        res.textContent='⏳ 발송 중...';
+        tb.disabled=true;
+        /* EmailJS 상태 확인 */
+        if(typeof emailjs==='undefined'){
+          res.textContent='❌ EmailJS 라이브러리가 로드되지 않았습니다. 새로고침 후 다시 시도하세요.';
+          tb.disabled=false;return;
+        }
+        var now=new Date();
+        var params={
+          customer_name:  '테스트 발송',
+          customer_email: to,
+          company:        '테스트',
+          phone:          '010-0000-0000',
+          order_no:       'TEST-'+Date.now(),
+          order_date:     now.toLocaleString('ko-KR'),
+          order_items:    'EmailJS 연결 테스트',
+          total_amount:   '0'
+        };
+        console.log('[EmailJS TEST] 파라미터:', params);
+        /* 관리자 템플릿으로 테스트 */
+        emailjs.send('service_u84073f','les9r73',params)
+          .then(function(r){
+            res.innerHTML='✅ <b>관리자 템플릿(les9r73) 발송 성공!</b> status:'+r.status+' / '+r.text+'<br>받은편지함을 확인하세요.';
+            /* 고객 템플릿도 연이어 테스트 */
+            return emailjs.send('service_u84073f','518gwgv',params);
+          })
+          .then(function(r2){
+            res.innerHTML+='<br>✅ <b>고객 템플릿(518gwgv) 발송 성공!</b> status:'+r2.status;
+          })
+          .catch(function(e){
+            console.error('[EmailJS TEST] 오류:', e);
+            var msg='❌ 발송 실패: ';
+            if(e&&e.text) msg+=e.text;
+            else if(e&&e.message) msg+=e.message;
+            else msg+=JSON.stringify(e);
+            res.innerHTML=msg+'<br><small style="color:#856404">→ EmailJS 대시보드 Email Services / Templates 설정을 확인하세요.</small>';
+          })
+          .finally(function(){ tb.disabled=false; });
+      });
+    }
+  },300);
+});
 ge('adminhdl').addEventListener('click',function(){ge('adminov').classList.remove('show');});
 ge('adminov').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});
 
