@@ -225,6 +225,24 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .role-btn.active{outline:2px solid var(--p);outline-offset:1px}
 .mb-pending{background:#FFF3CD;border-radius:8px;padding:6px 10px;font-size:11px;color:#856404;display:flex;align-items:center;justify-content:space-between;margin-top:6px}
 .approve-btn{background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+/* ══ 마이페이지 ══ */
+.my-section{background:var(--card);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:14px;overflow:hidden}
+.my-sh{padding:12px 14px 10px;border-bottom:1px solid var(--bd);font-size:13px;font-weight:700;color:var(--tx)}
+.my-sb{padding:12px 14px}
+.my-field{margin-bottom:12px}
+.my-label{font-size:11px;font-weight:700;color:var(--sub);margin-bottom:5px;display:block}
+.my-val{font-size:14px;font-weight:600;color:var(--tx);padding:10px 12px;background:var(--tag);border-radius:8px}
+.my-input{width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:8px;font-size:14px;color:var(--tx);outline:none;background:#fff;-webkit-appearance:none}
+.my-input:focus{border-color:var(--p2)}
+.my-savebtn{width:100%;padding:12px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px}
+.my-savebtn:active{opacity:.85}
+.ord-item{background:var(--tag);border-radius:10px;padding:12px 13px;margin-bottom:10px;border:1px solid var(--bd)}
+.ord-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ord-no{font-size:11px;font-weight:700;color:var(--p2);font-family:monospace}
+.ord-date{font-size:10px;color:var(--sub)}
+.ord-items{font-size:12px;color:var(--tx);line-height:1.6;white-space:pre-wrap;word-break:break-all}
+.ord-total{font-size:14px;font-weight:800;color:var(--red);margin-top:6px;text-align:right}
+.ord-status{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--p2);color:#fff;margin-left:6px}
 .reject-btn{background:var(--red);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;margin-left:4px}
 </style>
 </head>
@@ -274,6 +292,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 
     <div class="anot">
       &#128274; 가격 정보는 회원 로그인 후 확인 가능합니다.<br>
+      &#9993; 회원가입 후 이메일 인증이 필요합니다.<br>
       &#128226; 물량 할인가 및 계산기는 관리자 승인 후 이용 가능합니다.<br>
       &#128222; 문의: 010-4864-8560
     </div>
@@ -323,11 +342,13 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
     <div class="tb" data-id="11">SIKKENS</div>
     <div class="tb" data-id="12">AUTOWAVE</div>
     <div class="tb" data-id="13">AUTOCRYL</div>
+    <div class="tb" data-id="mypage">👤 마이페이지</div>
   </div>
   <div id="rbar"><span>검색결과</span><b id="rcnt">0</b><span>건</span></div>
   <div id="sc">
     <div id="home"></div>
     <div id="lst" style="display:none"></div>
+    <div id="mypage" style="display:none"></div>
     <div id="empty"><div class="ei">&#128269;</div><p>검색 결과가 없습니다.<br>다른 키워드로 검색해보세요.</p></div>
   </div>
 </div>
@@ -469,7 +490,30 @@ ge('abtn').addEventListener('click',function(){
   if(pw.length<6){setMsg('비밀번호는 6자 이상이어야 합니다.','err');return;}
   ge('abtn').disabled=true;
   if(amode==='login'){
-    auth.signInWithEmailAndPassword(email,pw).catch(function(e){
+    auth.signInWithEmailAndPassword(email,pw).then(function(uc){
+      /* ② 이메일 인증 확인 */
+      if(!uc.user.emailVerified && uc.user.email !== ADMIN_EMAIL){
+        auth.signOut();
+        ge('abtn').disabled=false;
+        setMsg('이메일 인증이 필요합니다. 받은편지함을 확인해주세요. (인증 메일 재발송: 아래 버튼)','err');
+        /* 재발송 버튼 동적 추가 */
+        var resendBtn=document.createElement('button');
+        resendBtn.textContent='📧 인증 메일 재발송';
+        resendBtn.className='abtn';resendBtn.style.marginTop='8px';resendBtn.style.background='#607D99';
+        resendBtn.onclick=function(){
+          auth.signInWithEmailAndPassword(email,pw).then(function(uc2){
+            uc2.user.sendEmailVerification().then(function(){
+              auth.signOut();
+              setMsg('인증 메일을 재발송했습니다.','ok');
+              resendBtn.remove();
+            });
+          });
+        };
+        ge('amsg').after(resendBtn);
+        return;
+      }
+      /* 인증 완료 → onAuthStateChanged 에서 처리됨 */
+    }).catch(function(e){
       ge('abtn').disabled=false;
       var m='로그인에 실패했습니다.';
       if(e.code==='auth/user-not-found'||e.code==='auth/invalid-credential') m='이메일 또는 비밀번호가 올바르지 않습니다.';
@@ -489,8 +533,17 @@ ge('abtn').addEventListener('click',function(){
         return db.collection('users').doc(uc.user.uid).set({
           email:email, name:dn, company:comp, phone:phone,
           role:'basic', pendingUpgrade:false,
+          emailVerified:false,
           createdAt:firebase.firestore.FieldValue.serverTimestamp()
         });
+      }).then(function(){
+        /* ① 이메일 인증 발송 */
+        return uc.user.sendEmailVerification();
+      }).then(function(){
+        setMsg('✅ 가입 완료! 이메일 인증 메일을 발송했습니다. 받은편지함을 확인하여 인증 후 로그인해주세요.','ok');
+        ge('abtn').disabled=false;
+        auth.signOut();
+        setTimeout(function(){setMode('login');},4000);
       });
     }).catch(function(e){
       ge('abtn').disabled=false;
@@ -654,11 +707,26 @@ function mkCard(d,idx){
 function requestUpgrade(){
   if(!CU){alert('로그인이 필요합니다.');return;}
   if(ROLE==='pro'||ROLE==='admin'){alert('이미 승인된 회원입니다.');return;}
-  db.collection('users').doc(CU.uid).update({
-    pendingUpgrade: true,
-    upgradeRequestedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).then(function(){
-    alert('권한 요청이 완료되었습니다.\n관리자 승인 후 할인가를 확인하실 수 있습니다.');
+  db.collection('users').doc(CU.uid).get().then(function(doc){
+    var udata=doc.exists?doc.data():{};
+    db.collection('users').doc(CU.uid).update({
+      pendingUpgrade: true,
+      upgradeRequestedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(function(){
+      /* ③ 관리자에게 승인 요청 알림 이메일 발송 */
+      var now=new Date();
+      emailjs.send('service_u84073f','les9r73',{
+        customer_name:  udata.name||CU.displayName||CU.email,
+        customer_email: udata.email||CU.email||'',
+        company:        udata.company||'',
+        phone:          udata.phone||'',
+        order_no:       '승인요청-'+now.getFullYear()+(now.getMonth()+1)+now.getDate(),
+        order_date:     now.toLocaleString('ko-KR'),
+        order_items:    '⚠️ 할인가 승인 요청',
+        total_amount:   '승인 대기'
+      }).catch(function(e){console.warn('승인요청 알림 오류:',e);});
+      alert('권한 요청이 완료되었습니다.\n관리자 승인 후 할인가를 확인하실 수 있습니다.');
+    });
   });
 }
 
@@ -795,56 +863,49 @@ function sendOrderEmails(orderData){
 }
 
 function sendSMS(){
-  var lines=[];
-  for(var i=0;i<CART.length;i++){
-    var c=CART[i],d=DB[c.idx],q=c.qty,r=calcUnit(d,q);
-    lines.push((i+1)+'. '+getName(d)+' / '+q+'EA'
-      +(r?' / '+nf(r.unit)+'원 x '+q+'EA = '+nf(r.total)+'원':''));
-  }
-  var orderText = lines.join('\n');
-  var totalAmt = nf(cartTotal())+'원';
+  if(!CU){alert('로그인이 필요합니다.');return;}
+  db.collection('users').doc(CU.uid).get().then(function(doc){
+    var udata=doc.exists?doc.data():{};
+    var productLines=[];
+    for(var i=0;i<CART.length;i++){
+      var c=CART[i],d=DB[c.idx],q=c.qty,r=calcUnit(d,q);
+      productLines.push((i+1)+'. '+getName(d)+' / '+q+'EA'
+        +(r?' / '+nf(r.unit)+'원 x '+q+'EA = '+nf(r.total)+'원':''));
+    }
+    var productText=productLines.join('\n');
 
-  /* 이메일 자동 발송 */
-  if(CU){
-    db.collection('users').doc(CU.uid).get().then(function(doc){
-      var udata = doc.exists ? doc.data() : {};
-      sendOrderEmails({
-        name:    CU.displayName || udata.name || CU.email,
-        email:   udata.email || CU.email || '',
-        company: udata.company || '',
-        phone:   udata.phone || '',
-        items:   orderText,
-        total:   nf(cartTotal())
-      });
+    /* ④ 고객 정보 자동 채우기 */
+    var kakaoLines=['[자보 제품 주문]'];
+    kakaoLines.push('주문자: '+(udata.name||CU.displayName||CU.email));
+    if(udata.company)kakaoLines.push('상호명: '+udata.company);
+    kakaoLines.push(productText);
+    kakaoLines.push('합계: '+nf(cartTotal())+'원');
+    kakaoLines.push('주소: '+(udata.address||'(주소 입력 필요)'));
+    kakaoLines.push('연락처: '+(udata.phone||'(연락처 입력 필요)'));
+    var kakaoText=kakaoLines.join('\n');
+
+    /* 이메일 자동 발송 */
+    sendOrderEmails({
+      name:    udata.name||CU.displayName||CU.email,
+      email:   udata.email||CU.email||'',
+      company: udata.company||'',
+      phone:   udata.phone||'',
+      items:   productText,
+      total:   nf(cartTotal())
     });
-  }
 
-  /* 오픈카카오톡으로 이동 */
-  var kakaoLines = ['[자보 제품 주문]'];
-  if(CU)kakaoLines.push('주문자: '+(CU.displayName||CU.email));
-  kakaoLines.push(orderText);
-  kakaoLines.push('합계: '+nf(cartTotal())+'원');
-  kakaoLines.push('주소: ');
-  kakaoLines.push('연락처: ');
-  var kakaoText = kakaoLines.join('\n');
+    function goKakao(){ window.location.href='https://open.kakao.com/o/soefIapi'; }
 
-  /* 클립보드 복사 후 카카오 이동 */
-  function goKakao(){
-    window.location.href='https://open.kakao.com/o/soefIapi';
-  }
-
-  if(navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(orderText).then(function(){
-      if(confirm('✅ 이메일이 자동 발송되었습니다!\n\n카카오 오픈채팅으로도 이동하시겠습니까?')){
-        goKakao();
-      }
-    }).catch(function(){
-      /* iOS Safari 등 클립보드 실패 시 */
-      showOrderPopup(orderText);
-    });
-  } else {
-    showOrderPopup(orderText);
-  }
+    if(navigator.clipboard&&window.isSecureContext){
+      navigator.clipboard.writeText(kakaoText).then(function(){
+        if(confirm('✅ 이메일이 자동 발송되었습니다!\n\n카카오 오픈채팅으로도 이동하시겠습니까?')){
+          goKakao();
+        }
+      }).catch(function(){ showOrderPopup(kakaoText); });
+    } else {
+      showOrderPopup(kakaoText);
+    }
+  });
 }
 
 function showOrderPopup(txt){
@@ -934,8 +995,29 @@ function openAdmin(){
     body.querySelectorAll('[data-a="approve"]').forEach(function(btn){
       btn.addEventListener('click',function(){
         var uid=this.getAttribute('data-uid');
-        db.collection('users').doc(uid).update({role:'pro',pendingUpgrade:false})
-          .then(function(){alert('승인되었습니다.');openAdmin();});
+        /* 고객 정보 가져와서 승인 알림 이메일 발송 */
+        db.collection('users').doc(uid).get().then(function(udoc){
+          var u=udoc.exists?udoc.data():{};
+          db.collection('users').doc(uid).update({role:'pro',pendingUpgrade:false})
+            .then(function(){
+              /* 고객에게 승인 완료 알림 */
+              if(u.email&&u.email.indexOf('@')>0){
+                var now=new Date();
+                emailjs.send('service_u84073f','518gwgv',{
+                  customer_name:  u.name||u.email,
+                  customer_email: u.email,
+                  company:        u.company||'',
+                  phone:          u.phone||'',
+                  order_no:       '승인완료-'+now.getFullYear()+(now.getMonth()+1)+now.getDate(),
+                  order_date:     now.toLocaleString('ko-KR'),
+                  order_items:    '✅ 할인가 승인이 완료되었습니다.\n앱에서 할인가와 수량계산기를 이용하실 수 있습니다.',
+                  total_amount:   '승인 완료'
+                }).catch(function(e){console.warn('승인 알림 오류:',e);});
+              }
+              alert('승인되었습니다. 고객에게 승인 완료 알림 이메일이 발송됩니다.');
+              openAdmin();
+            });
+        });
       });
     });
     body.querySelectorAll('[data-a="reject"]').forEach(function(btn){
@@ -963,6 +1045,7 @@ function doFilter(q,tab){
 function renderList(res,app){
   var le=ge('lst'),he=ge('home'),ee=ge('empty'),rb=ge('rbar');
   he.style.display='none';ee.style.display='none';rb.style.display='flex';
+  ge('mypage').style.display='none';ge('inp').disabled=false;
   ge('rcnt').textContent=res.length.toLocaleString('ko-KR');
   if(res.length===0){le.style.display='none';ee.style.display='flex';return;}
   le.style.display='block';
@@ -974,6 +1057,7 @@ function renderList(res,app){
 function showHome(){
   ge('home').style.display='block';ge('lst').style.display='none';ge('lst').innerHTML='';
   ge('empty').style.display='none';ge('rbar').style.display='none';
+  ge('mypage').style.display='none';ge('inp').disabled=false;
 }
 function buildHome(){
   var h='<div class="sec-t">카테고리별 보기</div><div class="cgrid">';
@@ -988,9 +1072,80 @@ function switchTab(id){
   curTab=id;document.querySelectorAll('.tb').forEach(function(t){t.classList.remove('on');});
   var at=document.querySelector('.tb[data-id="'+id+'"]');
   if(at){at.classList.add('on');at.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
+  /* ⑤ 마이페이지 탭 처리 */
+  if(id==='mypage'){
+    ge('home').style.display='none';ge('lst').style.display='none';
+    ge('empty').style.display='none';ge('rbar').style.display='none';
+    ge('mypage').style.display='block';ge('inp').disabled=true;
+    buildMyPage();return;
+  }
+  ge('inp').disabled=false;ge('mypage').style.display='none';
   var q=ge('inp').value.trim();
   if(id==='all'&&q===''){showHome();return;}
   curRes=doFilter(q,id);renderList(curRes,false);ge('sc').scrollTop=0;
+}
+/* ⑤ 마이페이지 렌더 */
+function buildMyPage(){
+  if(!CU){ge('mypage').innerHTML='<p style="text-align:center;padding:40px;color:var(--sub)">로그인이 필요합니다.</p>';return;}
+  ge('mypage').innerHTML='<p style="text-align:center;padding:30px;color:var(--sub)">로딩 중...</p>';
+  db.collection('users').doc(CU.uid).get().then(function(udoc){
+    var u=udoc.exists?udoc.data():{};
+    /* 주문 이력 */
+    db.collection('orders').where('uid','==',CU.uid).limit(20).get().then(function(snap){
+      var ordH='';
+      if(snap.empty){
+        ordH='<p style="text-align:center;color:var(--sub);padding:16px 0;font-size:13px">아직 주문 내역이 없습니다.</p>';
+      } else {
+        snap.forEach(function(odoc){
+          var o=odoc.data();
+          var dt=o.orderDate?new Date(o.orderDate.seconds*1000).toLocaleString('ko-KR'):'';
+          ordH+='<div class="ord-item">'
+            +'<div class="ord-top"><span class="ord-no">'+esc(o.orderNo||'')+'</span>'
+            +'<span class="ord-date">'+esc(dt)+'</span></div>'
+            +'<div class="ord-items">'+esc(o.items||'')+'</div>'
+            +'<div class="ord-total">합계 '+esc(o.total||'0')+'원'
+            +'<span class="ord-status">'+esc(o.status||'접수')+'</span></div>'
+            +'</div>';
+        });
+      }
+      var roleLbl={'basic':'일반회원','pro':'승인회원','admin':'관리자'}[ROLE]||'일반회원';
+      var html=''
+        +'<div style="padding:4px 2px 0">'
+        /* 내 정보 */
+        +'<div class="my-section">'
+        +'<div class="my-sh">👤 내 정보</div>'
+        +'<div class="my-sb">'
+        +'<div class="my-field"><span class="my-label">이름</span><div class="my-val">'+esc(u.name||CU.displayName||'-')+'</div></div>'
+        +'<div class="my-field"><span class="my-label">이메일</span><div class="my-val">'+esc(u.email||CU.email||'-')+'</div></div>'
+        +'<div class="my-field"><span class="my-label">상호명</span><div class="my-val">'+esc(u.company||'-')+'</div></div>'
+        +'<div class="my-field"><span class="my-label">연락처</span><div class="my-val">'+esc(u.phone||'-')+'</div></div>'
+        +'<div class="my-field"><span class="my-label">회원 등급</span><div class="my-val">'+roleLbl+'</div></div>'
+        +'</div></div>'
+        /* 주소 저장 */
+        +'<div class="my-section">'
+        +'<div class="my-sh">📍 배송지 주소 (주문 자동 완성)</div>'
+        +'<div class="my-sb">'
+        +'<div class="my-field"><span class="my-label">주소</span>'
+        +'<input class="my-input" id="myAddr" type="text" placeholder="예: 서울시 강남구 테헤란로 123" value="'+esc(u.address||'')+'"></div>'
+        +'<button class="my-savebtn" id="mySaveBtn">💾 주소 저장</button>'
+        +'</div></div>'
+        /* 주문 이력 */
+        +'<div class="my-section">'
+        +'<div class="my-sh">📦 주문 이력 (최근 20건)</div>'
+        +'<div class="my-sb">'+ordH+'</div>'
+        +'</div>'
+        +'</div>';
+      ge('mypage').innerHTML=html;
+      /* 주소 저장 버튼 */
+      ge('mySaveBtn').addEventListener('click',function(){
+        var addr=ge('myAddr').value.trim();
+        db.collection('users').doc(CU.uid).update({address:addr}).then(function(){
+          ge('mySaveBtn').textContent='✅ 저장되었습니다!';
+          setTimeout(function(){ge('mySaveBtn').textContent='💾 주소 저장';},2000);
+        });
+      });
+    });
+  });
 }
 ge('tabs').addEventListener('click',function(e){
   var t=e.target;if(t.classList&&t.classList.contains('tb'))switchTab(t.getAttribute('data-id'));
@@ -1105,40 +1260,48 @@ function openDet(idx){
   if(ds)ds.addEventListener('click',function(){
     var q=dqi?parseInt(dqi.value,10)||1:1;
     var r=calcUnit(DI,q);
+    /* ④ 고객 정보 자동 채우기 */
+    if(CU){
+      db.collection('users').doc(CU.uid).get().then(function(doc){
+        var udata=doc.exists?doc.data():{};
+        var r2=calcUnit(DI,q);
+        var lines=['[자보 제품 주문]'];
+        lines.push('주문자: '+(udata.name||CU.displayName||CU.email));
+        if(udata.company)lines.push('상호명: '+udata.company);
+        lines.push('제품명: '+getName(DI));
+        lines.push('수량: '+q+'EA');
+        if(r2)lines.push('단가: '+nf(r2.unit)+'원 / 합계: '+nf(r2.total)+'원');
+        lines.push('주소: '+(udata.address||'(주소 입력 필요)'));
+        lines.push('연락처: '+(udata.phone||'(연락처 입력 필요)'));
+        var orderText=lines.join('\n');
+        sendOrderEmails({
+          name:    udata.name||CU.displayName||CU.email,
+          email:   udata.email||CU.email||'',
+          company: udata.company||'',
+          phone:   udata.phone||'',
+          items:   getName(DI)+' / '+q+'EA'+(r2?' / '+nf(r2.unit)+'원 x '+q+'EA = '+nf(r2.total)+'원':''),
+          total:   r2?nf(r2.total):'0'
+        });
+        if(navigator.clipboard&&window.isSecureContext){
+          navigator.clipboard.writeText(orderText).then(function(){
+            if(confirm('✅ 이메일이 자동 발송되었습니다!\n\n카카오 오픈채팅으로도 이동하시겠습니까?')){
+              window.location.href='https://open.kakao.com/o/soefIapi';
+            }
+          }).catch(function(){showOrderPopup(orderText);});
+        } else {
+          showOrderPopup(orderText);
+        }
+      });
+      return;
+    }
+    /* 비로그인 fallback */
     var lines=['[자보 제품 주문]'];
     if(CU)lines.push('주문자: '+(CU.displayName||CU.email));
     lines.push('제품명: '+getName(DI));
     lines.push('수량: '+q+'EA');
     if(r)lines.push('단가: '+nf(r.unit)+'원 / 합계: '+nf(r.total)+'원');
-    lines.push('주소: ');
-    lines.push('연락처: ');
-    var orderText=lines.join('\n');
-
-    /* 이메일 자동 발송 */
-    if(CU){
-      db.collection('users').doc(CU.uid).get().then(function(doc){
-        var udata = doc.exists ? doc.data() : {};
-        var r2 = calcUnit(DI, q);
-        sendOrderEmails({
-          name:    CU.displayName || udata.name || CU.email,
-          email:   udata.email || CU.email || '',
-          company: udata.company || '',
-          phone:   udata.phone || '',
-          items:   getName(DI)+' / '+q+'EA'+(r2?' / '+nf(r2.unit)+'원 x '+q+'EA = '+nf(r2.total)+'원':''),
-          total:   r2 ? nf(r2.total) : '0'
-        });
-      });
-    }
-
-    if(navigator.clipboard && window.isSecureContext){
-      navigator.clipboard.writeText(orderText).then(function(){
-        if(confirm('✅ 이메일이 자동 발송되었습니다!\n\n카카오 오픈채팅으로도 이동하시겠습니까?')){
-          window.location.href='https://open.kakao.com/o/soefIapi';
-        }
-      }).catch(function(){showOrderPopup(orderText);});
-    } else {
-      showOrderPopup(orderText);
-    }
+    lines.push('주소: ');lines.push('연락처: ');
+    showOrderPopup(lines.join('\n'));
   });
   var da=ge('detaddbtn');
   if(da)da.addEventListener('click',function(){
