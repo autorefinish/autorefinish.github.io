@@ -815,7 +815,23 @@ function renderCart(){
 }
 
 /* ══ EmailJS 이메일 발송 ══ */
+function showEmailError(msg){
+  /* 화면에 발송 오류 토스트 표시 */
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:99999;max-width:320px;text-align:center;word-break:break-all';
+  t.textContent='📧 이메일 오류: '+msg;
+  document.body.appendChild(t);
+  setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},8000);
+  console.error('[EmailJS] 오류 상세:', msg);
+}
+
 function sendOrderEmails(orderData){
+  /* EmailJS 로드 확인 */
+  if(typeof emailjs === 'undefined'){
+    showEmailError('EmailJS 라이브러리 로드 실패 — 새로고침 후 다시 시도하세요.');
+    return;
+  }
+
   var now = new Date();
   var orderNo = 'ORD-' + now.getFullYear()
     + String(now.getMonth()+1).padStart(2,'0')
@@ -830,27 +846,41 @@ function sendOrderEmails(orderData){
     + String(now.getMinutes()).padStart(2,'0') + '분';
 
   var params = {
-    customer_name:  orderData.name,
-    customer_email: orderData.email,
-    company:        orderData.company,
-    phone:          orderData.phone,
+    customer_name:  orderData.name  || '(이름없음)',
+    customer_email: orderData.email || '',
+    company:        orderData.company || '',
+    phone:          orderData.phone || '',
     order_no:       orderNo,
     order_date:     orderDate,
-    order_items:    orderData.items,
-    total_amount:   orderData.total
+    order_items:    orderData.items || '',
+    total_amount:   orderData.total || '0'
   };
 
-  /* 고객용 이메일 */
+  console.log('[EmailJS] 발송 시작 — 파라미터:', JSON.stringify(params));
+
+  /* 관리자 이메일 먼저 발송 (항상) */
+  emailjs.send('service_u84073f', 'les9r73', params)
+    .then(function(res){
+      console.log('[EmailJS] 관리자 메일 성공:', res.status, res.text);
+    })
+    .catch(function(e){
+      var errMsg = (e && e.text) ? e.text : (e && e.message ? e.message : JSON.stringify(e));
+      showEmailError('관리자 메일 실패 — ' + errMsg);
+    });
+
+  /* 고객 이메일 발송 (이메일 주소 있을 때) */
   if(orderData.email && orderData.email.indexOf('@') > 0){
     emailjs.send('service_u84073f', '518gwgv', params)
-      .then(function(){ console.log('고객 이메일 발송 완료'); })
-      .catch(function(e){ console.warn('고객 이메일 오류:', e); });
+      .then(function(res){
+        console.log('[EmailJS] 고객 메일 성공:', res.status, res.text);
+      })
+      .catch(function(e){
+        var errMsg = (e && e.text) ? e.text : (e && e.message ? e.message : JSON.stringify(e));
+        showEmailError('고객 메일 실패 — ' + errMsg);
+      });
+  } else {
+    console.warn('[EmailJS] 고객 이메일 주소 없음 — 고객 메일 생략');
   }
-
-  /* 관리자용 이메일 */
-  emailjs.send('service_u84073f', 'les9r73', params)
-    .then(function(){ console.log('관리자 이메일 발송 완료'); })
-    .catch(function(e){ console.warn('관리자 이메일 오류:', e); });
 
   /* Firestore에 주문 저장 */
   if(db && CU){
