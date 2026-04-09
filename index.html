@@ -722,7 +722,7 @@ function requestUpgrade(){
     }).then(function(){
       /* ③ 관리자에게 승인 요청 알림 이메일 발송 */
       var now=new Date();
-      emailjs.send('service_u84073f','les9r73',{
+      emailjs.send('service_u84073f','template_ed3ypgc',{
         customer_name:  udata.name||CU.displayName||CU.email,
         customer_email: udata.email||CU.email||'',
         company:        udata.company||'',
@@ -859,7 +859,7 @@ function sendOrderEmails(orderData){
   console.log('[EmailJS] 발송 시작 — 파라미터:', JSON.stringify(params));
 
   /* 관리자 이메일 먼저 발송 (항상) */
-  emailjs.send('service_u84073f', 'les9r73', params)
+  emailjs.send('service_u84073f', 'template_ed3ypgc', params)
     .then(function(res){
       console.log('[EmailJS] 관리자 메일 성공:', res.status, res.text);
     })
@@ -870,7 +870,7 @@ function sendOrderEmails(orderData){
 
   /* 고객 이메일 발송 (이메일 주소 있을 때) */
   if(orderData.email && orderData.email.indexOf('@') > 0){
-    emailjs.send('service_u84073f', '518gwgv', params)
+    emailjs.send('service_u84073f', 'template_kdnhivc', params)
       .then(function(res){
         console.log('[EmailJS] 고객 메일 성공:', res.status, res.text);
       })
@@ -1040,7 +1040,7 @@ function openAdmin(){
               /* 고객에게 승인 완료 알림 */
               if(u.email&&u.email.indexOf('@')>0){
                 var now=new Date();
-                emailjs.send('service_u84073f','518gwgv',{
+                emailjs.send('service_u84073f','template_kdnhivc',{
                   customer_name:  u.name||u.email,
                   customer_email: u.email,
                   company:        u.company||'',
@@ -1097,11 +1097,11 @@ ge('adminbtn') && ge('adminbtn').addEventListener('click',function(){
         };
         console.log('[EmailJS TEST] 파라미터:', params);
         /* 관리자 템플릿으로 테스트 */
-        emailjs.send('service_u84073f','les9r73',params)
+        emailjs.send('service_u84073f','template_ed3ypgc',params)
           .then(function(r){
             res.innerHTML='✅ <b>관리자 템플릿(les9r73) 발송 성공!</b> status:'+r.status+' / '+r.text+'<br>받은편지함을 확인하세요.';
             /* 고객 템플릿도 연이어 테스트 */
-            return emailjs.send('service_u84073f','518gwgv',params);
+            return emailjs.send('service_u84073f','template_kdnhivc',params);
           })
           .then(function(r2){
             res.innerHTML+='<br>✅ <b>고객 템플릿(518gwgv) 발송 성공!</b> status:'+r2.status;
